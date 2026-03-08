@@ -1,8 +1,9 @@
 /**
  * AgentPulse — My Tracked Agents Watchlist
- * Portfolio-style page of user-tracked agents with live performance tiles.
+ * Portfolio-style page of user-tracked agents.
+ * Metrics loaded on demand via "Load Metrics" button (no auto-fetch loops).
  */
-import { useMemo } from "react";
+import { useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AreaChart,
@@ -22,7 +23,6 @@ import { Button } from "@/components/ui/button";
 import {
   Star,
   StarOff,
-  ExternalLink,
   TrendingUp,
   Activity,
   Zap,
@@ -30,7 +30,6 @@ import {
   Plus,
   RefreshCw,
 } from "lucide-react";
-import { useState, useEffect } from "react";
 
 export default function MyTrackedAgents() {
   const { trackedAgents, untrackAgent, apiKey, metricsMap } = useApp();
