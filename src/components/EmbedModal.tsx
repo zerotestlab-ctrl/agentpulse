@@ -23,14 +23,14 @@ export function EmbedModal({ open, onClose }: EmbedModalProps) {
   const { chain } = useApp();
   const [copied, setCopied] = useState(false);
 
-  const widgetUrl = `https://agentlens.app/widget?chain=${chain}`;
-  const snippet = `<!-- AgentLens Widget — ${CHAIN_LABELS[chain]} AI Agent Analytics -->
+  const widgetUrl = `https://agentpulse.app/widget?chain=${chain}`;
+  const snippet = `<!-- AgentPulse Widget — ${CHAIN_LABELS[chain]} AI Agent Analytics -->
 <iframe
   src="${widgetUrl}"
   width="100%"
   height="420"
   style="border:none;border-radius:12px;overflow:hidden;"
-  title="AgentLens — On-Chain AI Agent Performance"
+  title="AgentPulse — On-Chain AI Agent Performance"
   loading="lazy"
 ></iframe>`;
 
