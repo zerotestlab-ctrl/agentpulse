@@ -17,7 +17,16 @@ import AgentProfile from "./pages/AgentProfile";
 import MyTrackedAgents from "./pages/MyTrackedAgents";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,       // 5 min
+      gcTime: 30 * 60 * 1000,          // 30 min
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -28,16 +37,16 @@ const App = () => (
         <AppProvider>
           <Layout>
             <Routes>
-              <Route path="/" element={<Overview />} />
-              <Route path="/bubblemap" element={<BubbleMap />} />
-              <Route path="/performance" element={<PerformanceAnalytics />} />
-              <Route path="/leaderboard" element={<AgentLeaderboard />} />
-              <Route path="/benchmarks" element={<CrossChainBenchmarks />} />
-              <Route path="/watchlist" element={<MyTrackedAgents />} />
-              <Route path="/failures" element={<FailuresExplorer />} />
-              <Route path="/how-it-works" element={<HowItWorks />} />
+              <Route path="/"               element={<Overview />} />
+              <Route path="/bubblemap"      element={<BubbleMap />} />
+              <Route path="/performance"    element={<PerformanceAnalytics />} />
+              <Route path="/leaderboard"    element={<AgentLeaderboard />} />
+              <Route path="/benchmarks"     element={<CrossChainBenchmarks />} />
+              <Route path="/watchlist"      element={<MyTrackedAgents />} />
+              <Route path="/failures"       element={<FailuresExplorer />} />
+              <Route path="/how-it-works"   element={<HowItWorks />} />
               <Route path="/agent/:address" element={<AgentProfile />} />
-              <Route path="*" element={<NotFound />} />
+              <Route path="*"              element={<NotFound />} />
             </Routes>
           </Layout>
         </AppProvider>
