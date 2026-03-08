@@ -54,7 +54,8 @@ export default function MyTrackedAgents() {
     Promise.allSettled(
       toLoad.map(async (agent) => {
         const txs = await fetchTransactions(agent.chain, agent.address, apiKey, 50);
-        const m = computeAgentMetrics(agent, txs);
+        const agentInfo = { ...agent, framework: (agent as any).framework ?? "Unknown" };
+        const m = computeAgentMetrics(agentInfo, txs);
         return { address: agent.address, metrics: m };
       }),
     ).then((results) => {
@@ -290,7 +291,7 @@ function AgentTile({
                     content={({ active, payload }) =>
                       active && payload?.length ? (
                         <div className="bg-background-elevated border border-border rounded px-2 py-1 text-[9px]">
-                          {payload[0]?.value?.toFixed(0)}% success
+                          {typeof payload[0]?.value === "number" ? payload[0].value.toFixed(0) : payload[0]?.value}% success
                         </div>
                       ) : null
                     }
