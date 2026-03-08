@@ -250,7 +250,6 @@ export default function AgentLeaderboard() {
               </thead>
               <tbody>
                 {filtered.map((agent, idx) => {
-                  const agentInfo = useApp;
                   return (
                     <tr key={agent.address} className="border-b border-border/40 table-row-hover">
                       <td className="py-3 pr-2 text-foreground-subtle">{idx + 1}</td>
