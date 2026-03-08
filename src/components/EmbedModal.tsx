@@ -49,7 +49,7 @@ export function EmbedModal({ open, onClose }: EmbedModalProps) {
             <span className="text-neon">{"</>"}</span> Embed Widget
           </DialogTitle>
           <DialogDescription className="text-foreground-muted">
-            Paste this snippet into any website to embed the AgentLens mini widget
+            Paste this snippet into any website to embed the AgentPulse mini widget
             showing live {CHAIN_LABELS[chain]} agent analytics.
           </DialogDescription>
         </DialogHeader>
