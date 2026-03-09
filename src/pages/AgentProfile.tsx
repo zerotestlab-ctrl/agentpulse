@@ -131,8 +131,13 @@ export default function AgentProfile() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  if (!address) return (
-    <div className="p-6 text-center text-foreground-muted">No agent address provided.</div>
+  if (!isValidAddress) return (
+    <div className="p-8 flex flex-col items-center justify-center gap-4 text-center">
+      <p className="text-destructive font-semibold text-sm">Invalid agent address format.</p>
+      <button onClick={() => navigate("/")} className="text-primary text-xs underline">
+        ← Back to Bubble Map
+      </button>
+    </div>
   );
 
   const successColorClass = metrics
