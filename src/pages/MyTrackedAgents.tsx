@@ -1,5 +1,6 @@
 /**
- * AgentPulse — My Tracked Agents (Birdeye portfolio watchlist style)
+ * AgentPulse — My Tracked Agents (Birdeye portfolio watchlist)
+ * Shows saved agents as performance tiles. Load Metrics requires user API key.
  */
 import { useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
@@ -11,15 +12,19 @@ import {
 } from "@/lib/covalent";
 import { shortAddress, CHAIN_LABELS } from "@/lib/agents";
 import { Button } from "@/components/ui/button";
-import { Star, StarOff, TrendingUp, Activity, Zap, Search, Plus, RefreshCw, CheckCircle2 } from "lucide-react";
+import {
+  Star, StarOff, TrendingUp, Activity, Zap, Search,
+  Plus, RefreshCw, CheckCircle2, KeyRound
+} from "lucide-react";
 
 export default function MyTrackedAgents() {
-  const { trackedAgents, untrackAgent, apiKey, metricsMap } = useApp();
+  const { trackedAgents, untrackAgent, apiKey, hasUserKey, metricsMap } = useApp();
   const navigate = useNavigate();
   const [agentMetrics, setAgentMetrics] = useState<Record<string, AgentMetrics>>({});
   const [loadingSet, setLoadingSet] = useState<Set<string>>(new Set());
 
   const loadAll = useCallback(async () => {
+    if (!hasUserKey) return;
     const toLoad = trackedAgents.filter(a => !metricsMap[a.address] && !agentMetrics[a.address]);
     if (!toLoad.length) return;
     setLoadingSet(new Set(toLoad.map(a => a.address)));
@@ -34,7 +39,7 @@ export default function MyTrackedAgents() {
     results.forEach(r => { if (r.status === "fulfilled") updates[r.value.address] = r.value.metrics; });
     setAgentMetrics(prev => ({ ...prev, ...updates }));
     setLoadingSet(new Set());
-  }, [trackedAgents, apiKey, metricsMap, agentMetrics]);
+  }, [trackedAgents, apiKey, hasUserKey, metricsMap, agentMetrics]);
 
   const getMetrics = (address: string) => metricsMap[address] ?? agentMetrics[address];
 
@@ -50,7 +55,7 @@ export default function MyTrackedAgents() {
   return (
     <div className="p-4 sm:p-6 space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-foreground flex items-center gap-2.5">
             <Star size={20} className="text-warning" /> My Tracked Agents
@@ -59,17 +64,24 @@ export default function MyTrackedAgents() {
             {trackedAgents.length} agent{trackedAgents.length !== 1 ? "s" : ""} in your watchlist
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => navigate("/leaderboard")}
             className="border-border text-foreground-muted gap-1.5 text-xs rounded-xl">
             <Plus size={12} /> Add Agents
           </Button>
           {trackedAgents.length > 0 && (
-            <Button size="sm" onClick={loadAll} disabled={loadingSet.size > 0}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 text-xs rounded-xl shadow-neon-sm">
-              <RefreshCw size={12} className={loadingSet.size > 0 ? "animate-spin" : ""} />
-              {loadingSet.size > 0 ? "Loading…" : "Load Metrics"}
-            </Button>
+            hasUserKey ? (
+              <Button size="sm" onClick={loadAll} disabled={loadingSet.size > 0}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 gap-1.5 text-xs rounded-xl shadow-neon-sm">
+                <RefreshCw size={12} className={loadingSet.size > 0 ? "animate-spin" : ""} />
+                {loadingSet.size > 0 ? "Loading…" : "Load Metrics"}
+              </Button>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs border border-dashed border-border/50 text-foreground-subtle cursor-default"
+                title="Add GoldRush key in Settings for live metrics">
+                <KeyRound size={11} className="text-primary/60" /> Key required
+              </div>
+            )
           )}
         </div>
       </div>
@@ -92,17 +104,15 @@ export default function MyTrackedAgents() {
               className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2 rounded-xl shadow-neon-sm">
               <TrendingUp size={13} /> Browse Leaderboard
             </Button>
-            <Button variant="outline" size="sm" onClick={() => {
-              const input = document.querySelector<HTMLInputElement>('input[placeholder*="Search agent"]');
-              input?.focus();
-            }} className="border-border gap-2 rounded-xl">
-              <Search size={13} /> Search Address
+            <Button variant="outline" size="sm" onClick={() => navigate("/bubblemap")}
+              className="border-border gap-2 rounded-xl">
+              <Search size={13} /> Explore Bubble Map
             </Button>
           </div>
         </motion.div>
       )}
 
-      {/* Portfolio summary cards */}
+      {/* Portfolio summary */}
       {trackedAgents.length > 0 && (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -123,7 +133,7 @@ export default function MyTrackedAgents() {
             ))}
           </div>
 
-          {/* Agent tiles */}
+          {/* Agent tiles grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {trackedAgents.map((agent, i) => {
               const m = getMetrics(agent.address);
@@ -132,9 +142,14 @@ export default function MyTrackedAgents() {
                 <motion.div key={agent.address}
                   initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: i * 0.05 }}>
-                  <AgentTile agent={agent} metrics={m} isLoading={loading}
+                  <AgentTile
+                    agent={agent}
+                    metrics={m}
+                    isLoading={loading}
+                    hasUserKey={hasUserKey}
                     onView={() => navigate(`/agent/${agent.address}`)}
-                    onUntrack={() => untrackAgent(agent.address)} />
+                    onUntrack={() => untrackAgent(agent.address)}
+                  />
                 </motion.div>
               );
             })}
@@ -146,10 +161,10 @@ export default function MyTrackedAgents() {
 }
 
 function AgentTile({
-  agent, metrics, isLoading, onView, onUntrack
+  agent, metrics, isLoading, hasUserKey, onView, onUntrack
 }: {
   agent: { address: string; name: string; chain: string; addedAt: number };
-  metrics?: AgentMetrics; isLoading: boolean; onView: () => void; onUntrack: () => void;
+  metrics?: AgentMetrics; isLoading: boolean; hasUserKey: boolean; onView: () => void; onUntrack: () => void;
 }) {
   const spark = useMemo(() => metrics ? buildDailyTimeSeries(metrics.recentTxs, 7) : [], [metrics]);
   const successColor = !metrics ? "text-foreground-muted"
@@ -160,8 +175,7 @@ function AgentTile({
     : metrics.successRate >= 70 ? "hsl(38,100%,55%)" : "hsl(0,84%,60%)";
 
   return (
-    <div className="card-glass card-glass-hover rounded-2xl border border-border p-5 cursor-pointer group"
-      onClick={onView}>
+    <div className="card-glass card-glass-hover rounded-2xl border border-border p-5 cursor-pointer group" onClick={onView}>
       <div className="flex items-start justify-between gap-2 mb-4">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/15 flex items-center justify-center flex-shrink-0">
@@ -199,7 +213,6 @@ function AgentTile({
               <p className="text-base font-black text-destructive num-ticker">{metrics.failCount}</p>
             </div>
           </div>
-
           {spark.length > 0 && (
             <div className="h-14 -mx-1 mb-3">
               <ResponsiveContainer width="100%" height="100%">
@@ -219,7 +232,13 @@ function AgentTile({
         </>
       ) : (
         <div className="h-16 flex items-center justify-center">
-          <p className="text-xs text-foreground-subtle">Click "Load Metrics" to fetch data</p>
+          {hasUserKey ? (
+            <p className="text-xs text-foreground-subtle">Click "Load Metrics" to fetch data</p>
+          ) : (
+            <div className="flex items-center gap-1.5 text-xs text-foreground-subtle">
+              <KeyRound size={11} className="text-primary/60" /> Add key to load metrics
+            </div>
+          )}
         </div>
       )}
 

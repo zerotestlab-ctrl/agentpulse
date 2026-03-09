@@ -1,7 +1,9 @@
 /**
  * AgentPulse — Premium Layout (Birdeye-quality)
- * Clean header: logo + search + settings + refresh
- * Full-height sidebar layout, glassmorphism banner, minimal footer
+ * - Non-dismissible API key banner until key is added
+ * - Refresh button disabled + tooltip when no key
+ * - Sticky header: logo + search + settings + refresh
+ * - Full-height sidebar layout, footer only
  */
 import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
@@ -16,7 +18,7 @@ import { useApp } from "@/contexts/AppContext";
 import { KNOWN_AGENTS, shortAddress } from "@/lib/agents";
 import {
   Settings, RefreshCw, AlertTriangle, Search,
-  X, Zap, Info, Github, Twitter
+  X, Zap, Github, Twitter, KeyRound, ChevronRight
 } from "lucide-react";
 
 interface LayoutProps { children: React.ReactNode; }
@@ -24,12 +26,11 @@ interface LayoutProps { children: React.ReactNode; }
 const ETH_ADDR = /^0x[0-9a-fA-F]{40}$/;
 
 export function Layout({ children }: LayoutProps) {
-  const { isLoading, refresh, error, isDemo, loadProgress } = useApp();
+  const { isLoading, refresh, error, hasUserKey, loadProgress, lastRefreshed } = useApp();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [embedOpen, setEmbedOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
-  const [showDemoBanner, setShowDemoBanner] = useState(true);
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -73,42 +74,31 @@ export function Layout({ children }: LayoutProps) {
         <AppSidebar />
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Demo banner */}
-          <AnimatePresence>
-            {isDemo && showDemoBanner && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="flex items-center justify-between px-4 py-2 bg-primary/5 border-b border-primary/15 text-xs flex-shrink-0 overflow-hidden"
-              >
-                <div className="flex items-center gap-2 text-primary/80">
-                  <Info size={12} className="flex-shrink-0" />
-                  <span className="font-medium">Demo mode active.</span>
-                  <span className="text-foreground-muted hidden sm:inline">
-                    Add your free{" "}
-                    <a href="https://www.covalenthq.com" target="_blank" rel="noopener noreferrer"
-                      className="underline hover:text-primary transition-colors">GoldRush key</a>
-                    {" "}in Settings for unlimited data.
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setSettingsOpen(true)}
-                    className="text-primary underline hover:no-underline text-xs font-medium">
-                    Add Key →
-                  </button>
-                  <button onClick={() => setShowDemoBanner(false)}
-                    className="text-foreground-subtle hover:text-foreground-muted p-0.5 rounded transition-colors">
-                    <X size={12} />
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          {/* Top header */}
-          <header className="h-14 flex items-center justify-between px-3 sm:px-4 gap-3 border-b border-border bg-background/80 backdrop-blur-xl flex-shrink-0 sticky top-0 z-40">
-            {/* Left */}
+          {/* ─── Non-dismissible API key banner ─── */}
+          {!hasUserKey && (
+            <div className="flex items-center justify-between px-3 sm:px-4 py-2.5 bg-gradient-to-r from-primary/10 via-primary/6 to-transparent border-b border-primary/20 flex-shrink-0">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-6 h-6 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center flex-shrink-0">
+                  <KeyRound size={11} className="text-primary" />
+                </div>
+                <p className="text-xs text-foreground-muted leading-tight min-w-0">
+                  <span className="text-primary font-semibold">Demo mode active.</span>
+                  <span className="hidden sm:inline"> Add your free GoldRush API key in Settings to unlock live data & refresh.</span>
+                </p>
+              </div>
+              <button
+                onClick={() => setSettingsOpen(true)}
+                className="flex items-center gap-1 text-primary text-xs font-semibold hover:text-primary/80 transition-colors flex-shrink-0 ml-3 group"
+              >
+                Add Key <ChevronRight size={11} className="group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
+          )}
+
+          {/* ─── Top header ─── */}
+          <header className="h-14 flex items-center justify-between px-3 sm:px-4 gap-3 border-b border-border bg-background/90 backdrop-blur-xl flex-shrink-0 sticky top-0 z-40">
+            {/* Left: hamburger + logo */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <SidebarTrigger className="text-foreground-muted hover:text-foreground h-8 w-8" />
               <div className="flex items-center gap-2 select-none cursor-pointer" onClick={() => navigate("/")}>
@@ -189,20 +179,43 @@ export function Layout({ children }: LayoutProps) {
               </AnimatePresence>
             </div>
 
-            {/* Right actions */}
+            {/* Right: refresh + settings */}
             <div className="flex items-center gap-1 flex-shrink-0">
-              <Button variant="ghost" size="sm" onClick={refresh} disabled={isLoading}
-                className="text-foreground-muted hover:text-foreground h-8 w-8 p-0 hover:bg-accent/50 rounded-lg" title="Refresh data">
-                <RefreshCw size={14} className={isLoading ? "animate-spin text-primary" : ""} />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(true)}
-                className="text-foreground-muted hover:text-foreground h-8 w-8 p-0 hover:bg-accent/50 rounded-lg" title="Settings">
+              {/* Refresh — disabled with tooltip when no key */}
+              <div className="relative group">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={hasUserKey ? refresh : undefined}
+                  disabled={isLoading}
+                  className={`h-8 w-8 p-0 rounded-lg transition-all ${
+                    hasUserKey
+                      ? "text-foreground-muted hover:text-foreground hover:bg-accent/50"
+                      : "text-foreground-subtle cursor-not-allowed opacity-40"
+                  }`}
+                  title={hasUserKey ? "Refresh live data" : "Add GoldRush key first"}
+                >
+                  <RefreshCw size={14} className={isLoading ? "animate-spin text-primary" : ""} />
+                </Button>
+                {!hasUserKey && (
+                  <div className="absolute right-0 top-full mt-1.5 z-50 bg-background-card border border-border rounded-lg px-2.5 py-1.5 text-[10px] text-foreground-muted whitespace-nowrap shadow-card-elevated pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
+                    Add GoldRush key first
+                  </div>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSettingsOpen(true)}
+                className="text-foreground-muted hover:text-foreground h-8 w-8 p-0 hover:bg-accent/50 rounded-lg"
+                title="Settings"
+              >
                 <Settings size={14} />
               </Button>
             </div>
           </header>
 
-          {/* Error banner */}
+          {/* ─── Error banner ─── */}
           <AnimatePresence>
             {error && (
               <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }}
@@ -218,15 +231,19 @@ export function Layout({ children }: LayoutProps) {
             )}
           </AnimatePresence>
 
-          {/* Progress bar */}
+          {/* ─── Progress bar ─── */}
           {isLoading && loadProgress > 0 && loadProgress < 100 && (
             <div className="h-0.5 bg-background-elevated flex-shrink-0">
-              <motion.div className="h-full bg-primary" initial={{ width: 0 }}
-                animate={{ width: `${loadProgress}%` }} transition={{ duration: 0.3 }} />
+              <motion.div
+                className="h-full bg-primary"
+                initial={{ width: 0 }}
+                animate={{ width: `${loadProgress}%` }}
+                transition={{ duration: 0.3 }}
+              />
             </div>
           )}
 
-          {/* Main */}
+          {/* ─── Main content ─── */}
           <main className="flex-1 overflow-auto">
             {children}
 
@@ -234,7 +251,7 @@ export function Layout({ children }: LayoutProps) {
             <footer className="border-t border-border mt-12 px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-[11px] text-foreground-subtle">
               <div className="flex items-center gap-2">
                 <span className="w-1.5 h-1.5 rounded-full bg-primary pulse-neon flex-shrink-0" />
-                <span>Powered by GoldRush · 100% on-chain public data · No login · No custody</span>
+                <span>Powered by GoldRush + The Graph · 100% on-chain public data · No login · No custody</span>
               </div>
               <div className="flex items-center gap-3">
                 <a href="https://github.com/agentpulse" target="_blank" rel="noopener noreferrer"
@@ -247,6 +264,12 @@ export function Layout({ children }: LayoutProps) {
                   className="flex items-center gap-1 hover:text-foreground-muted transition-colors">
                   <Twitter size={12} /> Share
                 </a>
+                {lastRefreshed && (
+                  <>
+                    <span>·</span>
+                    <span>Updated {lastRefreshed.toLocaleTimeString()}</span>
+                  </>
+                )}
               </div>
             </footer>
           </main>

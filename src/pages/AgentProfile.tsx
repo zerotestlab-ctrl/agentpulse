@@ -1,6 +1,8 @@
 /**
- * AgentPulse — Premium Agent Profile Page (Birdeye token page style)
- * Hero header, animated stat grid, main chart, tabs (Overview/Performance/Failures/Txs)
+ * AgentPulse — Agent Profile Page (Birdeye token page style)
+ * Hero header, stat grid, main chart, tabs (Overview/Performance/Failures/History)
+ * AgentProfile fetches its own data on-demand using the user's API key.
+ * If no user key, shows demo data from metricsMap.
  */
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -15,13 +17,14 @@ import {
   buildFailureBreakdown, parseFailureReason,
   type AgentMetrics, type CovalentTx,
 } from "@/lib/covalent";
+import { buildDemoTimeSeries } from "@/lib/demoData";
 import { KNOWN_AGENTS, shortAddress, CHAIN_LABELS, type SupportedChain } from "@/lib/agents";
 import { exportToCsv } from "@/lib/exportCsv";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft, Star, StarOff, ExternalLink, Copy, CheckCircle2,
-  Share2, Download, RefreshCw, Zap, Activity, TrendingUp,
-  AlertTriangle, Shield, Flame, Clock,
+  Share2, Download, RefreshCw, Zap, Activity, AlertTriangle,
+  Shield, Clock, KeyRound, Info,
 } from "lucide-react";
 
 const CHAIN_EXPLORER: Record<string, string> = {
@@ -60,24 +63,24 @@ const TABS = ["Overview", "Performance", "Failures", "Transactions"] as const;
 type Tab = typeof TABS[number];
 
 const DEBUG_TIPS: Record<string, string> = {
-  "Slippage Exceeded": "Increase slippage tolerance (0.5% → 1–3%) or use limit orders. Check liquidity depth.",
-  "Gas Limit Exceeded": "Increase gas limit by 20–30%. Complex DeFi ops need ≥500k gas. Consider gas estimation.",
-  "Execution Reverted": "Transaction logic failed. Check contract state, token balances, and approval amounts.",
+  "Slippage Exceeded": "Increase slippage tolerance (0.5% → 1–3%) or use limit orders. Check liquidity depth before swapping.",
+  "Gas Limit Exceeded": "Increase gas limit by 20–30%. Complex DeFi ops need ≥500k gas. Use gasEstimate() before submitting.",
+  "Execution Reverted": "Transaction logic failed. Check contract state, token balances, and ERC-20 approval amounts.",
   "Insufficient Balance": "Ensure wallet holds enough tokens + gas. Check for pending txs consuming balance.",
-  "Nonce Too Low": "Nonce conflict — wait for pending txs to clear or reset nonce in wallet settings.",
+  "Nonce Too Low": "Nonce conflict — wait for pending txs to clear or manually reset nonce in wallet settings.",
   "Deadline Exceeded": "Transaction too slow — increase deadline window (300s → 600s) or boost gas price.",
-  "Access Denied": "Caller lacks required role or allowance. Verify permissions and approvals.",
-  "Unknown Revert": "Check contract source code. Use Tenderly to trace the exact revert reason.",
+  "Access Denied": "Caller lacks required role or allowance. Verify permissions and token approvals.",
+  "Unknown Revert": "Check contract source code. Use Tenderly to trace the exact revert reason on-chain.",
 };
 
 export default function AgentProfile() {
   const { address } = useParams<{ address: string }>();
   const navigate = useNavigate();
-  const { apiKey, chain, trackAgent, untrackAgent, isTracked } = useApp();
+  const { apiKey, hasUserKey, chain, metricsMap, trackAgent, untrackAgent, isTracked } = useApp();
 
   const [txs, setTxs] = useState<CovalentTx[]>([]);
-  const [metrics, setMetrics] = useState<AgentMetrics | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [liveMetrics, setLiveMetrics] = useState<AgentMetrics | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>("Overview");
@@ -87,25 +90,34 @@ export default function AgentProfile() {
   const agentName = knownAgent?.name ?? `Agent ${shortAddress(address ?? "")}`;
   const tracked = isTracked(address ?? "");
 
-  const loadData = useCallback(async () => {
-    if (!address) return;
-    setIsLoading(true);
+  // Use live metrics if loaded, else fall back to metricsMap (demo) data
+  const demoMetrics = address ? metricsMap[address] ?? metricsMap[address.toLowerCase()] : null;
+  const metrics = liveMetrics ?? demoMetrics;
+  const isShowingDemo = !liveMetrics && !!demoMetrics;
+
+  const loadLiveData = useCallback(async () => {
+    if (!address || !hasUserKey) return;
+    setIsLoadingProfile(true);
     setError(null);
     try {
       const data = await fetchTransactions(profileChain, address, apiKey, 100);
       setTxs(data);
       const info = knownAgent ?? { address, name: agentName, chain: profileChain, framework: "Unknown" as const };
-      setMetrics(computeAgentMetrics(info, data));
+      setLiveMetrics(computeAgentMetrics(info, data));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load");
     } finally {
-      setIsLoading(false);
+      setIsLoadingProfile(false);
     }
-  }, [address, profileChain, apiKey]); // eslint-disable-line
+  }, [address, profileChain, apiKey, hasUserKey]); // eslint-disable-line
 
-  useEffect(() => { loadData(); }, [address, profileChain]); // eslint-disable-line
+  // Build time series
+  const timeSeries = useMemo(() => {
+    if (txs.length > 0) return buildDailyTimeSeries(txs, 14);
+    if (demoMetrics) return buildDemoTimeSeries(demoMetrics.successRate, 14);
+    return buildDemoTimeSeries(90, 14);
+  }, [txs, demoMetrics]);
 
-  const timeSeries = useMemo(() => buildDailyTimeSeries(txs, 14), [txs]);
   const failureBreakdown = useMemo(() => buildFailureBreakdown(txs), [txs]);
   const failedTxs = useMemo(() => txs.filter(t => !t.successful), [txs]);
 
@@ -119,7 +131,7 @@ export default function AgentProfile() {
     <div className="p-6 text-center text-foreground-muted">No agent address provided.</div>
   );
 
-  const successColor = metrics
+  const successColorClass = metrics
     ? metrics.successRate >= 90 ? "text-success" : metrics.successRate >= 70 ? "text-warning" : "text-destructive"
     : "text-foreground-muted";
 
@@ -133,7 +145,7 @@ export default function AgentProfile() {
         </button>
       </div>
 
-      {/* Hero header */}
+      {/* ─── Hero Header ─── */}
       <div className="px-4 sm:px-6 pb-6">
         <div className="relative rounded-2xl border border-border overflow-hidden"
           style={{ background: "linear-gradient(135deg, hsl(0 0% 7%) 0%, hsl(0 0% 6%) 100%)" }}>
@@ -141,6 +153,14 @@ export default function AgentProfile() {
           <div className="absolute top-0 right-0 w-64 h-64 rounded-full bg-primary/4 blur-3xl" />
 
           <div className="relative z-10 p-5 sm:p-7">
+            {/* Demo data notice */}
+            {isShowingDemo && (
+              <div className="flex items-center gap-2 mb-4 px-3 py-2 bg-warning/8 border border-warning/15 rounded-xl text-xs text-warning">
+                <Info size={11} />
+                <span>Showing demo data. Add your GoldRush key and click "Load Live Data" for real transactions.</span>
+              </div>
+            )}
+
             <div className="flex flex-col sm:flex-row items-start gap-5">
               {/* Avatar */}
               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-gradient-to-br from-primary/25 to-primary/10 border border-primary/25 flex items-center justify-center flex-shrink-0 shadow-neon-sm">
@@ -161,6 +181,11 @@ export default function AgentProfile() {
                       metrics.successRate >= 90 ? "badge-success" : metrics.successRate >= 70 ? "badge-warning" : "badge-error"
                     }`}>
                       {metrics.successRate.toFixed(1)}% success
+                    </span>
+                  )}
+                  {isShowingDemo && (
+                    <span className="text-[9px] font-medium px-2 py-1 rounded-full bg-warning/10 border border-warning/20 text-warning">
+                      DEMO
                     </span>
                   )}
                 </div>
@@ -192,23 +217,29 @@ export default function AgentProfile() {
                   ))}
                 </div>
 
-                <Button variant="outline" size="sm" onClick={() => {
-                  if (!address) return;
-                  tracked
-                    ? untrackAgent(address)
-                    : trackAgent({ address, name: agentName, chain: profileChain, addedAt: Date.now() });
-                }} className={`gap-2 h-9 text-xs rounded-xl border transition-all ${
-                  tracked ? "border-warning/40 text-warning hover:bg-warning/10" : "border-border text-foreground-muted hover:border-primary/40 hover:text-primary"
-                }`}>
+                {/* Track */}
+                <Button variant="outline" size="sm"
+                  onClick={() => {
+                    if (!address) return;
+                    tracked
+                      ? untrackAgent(address)
+                      : trackAgent({ address, name: agentName, chain: profileChain, addedAt: Date.now() });
+                  }}
+                  className={`gap-2 h-9 text-xs rounded-xl border transition-all ${
+                    tracked ? "border-warning/40 text-warning hover:bg-warning/10" : "border-border text-foreground-muted hover:border-primary/40 hover:text-primary"
+                  }`}>
                   {tracked ? <StarOff size={12} /> : <Star size={12} />}
                   {tracked ? "Untrack" : "Track Agent"}
                 </Button>
 
-                <Button variant="outline" size="sm" onClick={() => copyToClipboard(`${window.location.origin}/agent/${address}`)}
+                {/* Share */}
+                <Button variant="outline" size="sm"
+                  onClick={() => copyToClipboard(`${window.location.origin}/agent/${address}`)}
                   className="gap-2 h-9 text-xs border-border text-foreground-muted hover:border-primary/40 rounded-xl">
                   <Share2 size={12} /> Share
                 </Button>
 
+                {/* Explorer */}
                 {CHAIN_EXPLORER[profileChain] && (
                   <a href={`${CHAIN_EXPLORER[profileChain]}${address}`} target="_blank" rel="noopener noreferrer"
                     className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs border border-border text-foreground-muted hover:border-primary/40 hover:text-primary transition-all">
@@ -216,10 +247,19 @@ export default function AgentProfile() {
                   </a>
                 )}
 
-                <Button variant="ghost" size="sm" onClick={loadData} disabled={isLoading}
-                  className="h-9 w-9 p-0 hover:bg-accent/50 rounded-xl">
-                  <RefreshCw size={13} className={isLoading ? "animate-spin text-primary" : "text-foreground-muted"} />
-                </Button>
+                {/* Load live data button */}
+                {hasUserKey ? (
+                  <Button variant="ghost" size="sm" onClick={loadLiveData} disabled={isLoadingProfile}
+                    className="h-9 px-3 hover:bg-accent/50 rounded-xl gap-1.5 text-xs text-foreground-muted hover:text-foreground">
+                    <RefreshCw size={13} className={isLoadingProfile ? "animate-spin text-primary" : ""} />
+                    {isLoadingProfile ? "Loading…" : "Load Live"}
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-xs border border-dashed border-border/50 text-foreground-subtle cursor-default"
+                    title="Add GoldRush key in Settings for live data">
+                    <KeyRound size={11} className="text-primary/60" /> Live data
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -229,14 +269,13 @@ export default function AgentProfile() {
       {/* Error */}
       {error && (
         <div className="mx-4 sm:mx-6 mb-4 flex items-center gap-2 px-4 py-3 bg-destructive/8 border border-destructive/25 rounded-xl text-xs text-destructive">
-          <AlertTriangle size={12} />
-          {error}
+          <AlertTriangle size={12} /> {error}
         </div>
       )}
 
-      {/* KPI Stats */}
+      {/* ─── KPI Stats Grid ─── */}
       <div className="px-4 sm:px-6 mb-6">
-        {isLoading ? (
+        {isLoadingProfile ? (
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="h-28 card-glass border border-border rounded-2xl animate-shimmer" />
@@ -246,11 +285,12 @@ export default function AgentProfile() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               { label: "Total Txs", value: metrics.txCount.toLocaleString(), icon: <Activity size={14} className="text-primary" />, accent: "text-primary" },
-              { label: "Success Rate", value: `${metrics.successRate.toFixed(1)}%`, icon: <Shield size={14} className={successColor} />, accent: successColor },
+              { label: "Success Rate", value: `${metrics.successRate.toFixed(1)}%`, icon: <Shield size={14} className={successColorClass} />, accent: successColorClass },
               { label: "Avg Gas USD", value: metrics.avgGasUsd > 0 ? `$${metrics.avgGasUsd.toFixed(4)}` : "—", icon: <Zap size={14} className="text-warning" />, accent: "text-warning" },
               { label: "24h Txs", value: metrics.last24hTxCount.toString(), icon: <Clock size={14} className="text-secondary" />, accent: "text-secondary" },
             ].map((s, i) => (
-              <motion.div key={s.label} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
+              <motion.div key={s.label}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.07 }}
                 className="card-glass rounded-2xl border border-border p-5 hover:border-border-accent/40 transition-all">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[10px] uppercase tracking-widest text-foreground-subtle font-semibold">{s.label}</p>
@@ -263,12 +303,12 @@ export default function AgentProfile() {
         ) : null}
       </div>
 
-      {/* Tabs */}
+      {/* ─── Tabs ─── */}
       <div className="px-4 sm:px-6 mb-5">
-        <div className="flex gap-1 p-1 bg-background-elevated rounded-xl border border-border w-fit">
+        <div className="flex gap-1 p-1 bg-background-elevated rounded-xl border border-border w-fit overflow-x-auto">
           {TABS.map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-150 ${
+              className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
                 activeTab === tab
                   ? "bg-background-card text-foreground border border-border shadow-sm"
                   : "text-foreground-muted hover:text-foreground"
@@ -279,9 +319,10 @@ export default function AgentProfile() {
         </div>
       </div>
 
-      {/* Tab content */}
+      {/* ─── Tab Content ─── */}
       <div className="px-4 sm:px-6 pb-8">
         <AnimatePresence mode="wait">
+          {/* Overview tab */}
           {activeTab === "Overview" && (
             <motion.div key="overview" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -289,32 +330,31 @@ export default function AgentProfile() {
               <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
                 <h3 className="text-sm font-bold text-foreground mb-1">Success Rate — 14 Day</h3>
                 <p className="text-xs text-foreground-muted mb-5">Daily % of successful transactions</p>
-                {isLoading ? <div className="h-48 bg-background-elevated rounded-xl animate-shimmer" /> :
-                  txs.length === 0 ? <EmptyChart /> : (
-                    <ResponsiveContainer width="100%" height={190}>
-                      <AreaChart data={timeSeries} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                        <defs>
-                          <linearGradient id="ag-sg" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(142,76%,48%)" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="hsl(142,76%,48%)" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,12%)" />
-                        <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
-                        <Tooltip content={<ChartTooltip />} />
-                        <Area type="monotone" dataKey="successRate" name="Success Rate %" stroke="hsl(142,76%,48%)" strokeWidth={2.5} fill="url(#ag-sg)" dot={false} />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  )}
+                {isLoadingProfile ? <div className="h-48 bg-background-elevated rounded-xl animate-shimmer" /> : (
+                  <ResponsiveContainer width="100%" height={190}>
+                    <AreaChart data={timeSeries} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                      <defs>
+                        <linearGradient id="ag-sg" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(142,76%,48%)" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(142,76%,48%)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,12%)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
+                      <YAxis domain={[0, 100]} tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Area type="monotone" dataKey="successRate" name="Success Rate %" stroke="hsl(142,76%,48%)" strokeWidth={2.5} fill="url(#ag-sg)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
               </div>
 
-              {/* Failure pie */}
+              {/* Failure pie / empty state */}
               {failureBreakdown.length > 0 ? (
                 <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
                   <h3 className="text-sm font-bold text-foreground mb-1">Failure Breakdown</h3>
-                  <p className="text-xs text-foreground-muted mb-5">By revert reason</p>
-                  {isLoading ? <div className="h-48 bg-background-elevated rounded-xl animate-shimmer" /> : (
+                  <p className="text-xs text-foreground-muted mb-5">By revert reason (live data only)</p>
+                  {isLoadingProfile ? <div className="h-48 bg-background-elevated rounded-xl animate-shimmer" /> : (
                     <div className="flex items-center gap-4">
                       <ResponsiveContainer width={140} height={140}>
                         <PieChart>
@@ -340,121 +380,183 @@ export default function AgentProfile() {
                   )}
                 </div>
               ) : (
-                <div className="card-glass rounded-2xl border border-border p-5 sm:p-6 flex items-center justify-center">
-                  <div className="text-center space-y-2">
-                    <CheckCircle2 size={32} className="text-primary mx-auto" />
-                    <p className="text-sm font-bold text-foreground">Perfect execution</p>
-                    <p className="text-xs text-foreground-muted">No failures in recent transactions</p>
+                <div className="card-glass rounded-2xl border border-border p-5 sm:p-6 flex items-center justify-center min-h-[200px]">
+                  <div className="text-center space-y-3">
+                    {hasUserKey ? (
+                      <>
+                        <CheckCircle2 size={28} className="text-success mx-auto" />
+                        <p className="text-sm font-semibold text-foreground">No failures detected</p>
+                        <p className="text-xs text-foreground-muted">Load live data to see failure analysis</p>
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound size={28} className="text-primary/50 mx-auto" />
+                        <p className="text-sm font-semibold text-foreground">Add API key for failure analysis</p>
+                        <p className="text-xs text-foreground-muted">Live failure breakdown requires a GoldRush key</p>
+                      </>
+                    )}
                   </div>
                 </div>
               )}
             </motion.div>
           )}
 
+          {/* Performance tab */}
           {activeTab === "Performance" && (
-            <motion.div key="perf" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            <motion.div key="performance" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="space-y-4">
-              {/* Tx volume + gas charts */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
-                  <h3 className="text-sm font-bold text-foreground mb-1">Daily Tx Volume</h3>
-                  <p className="text-xs text-foreground-muted mb-5">Transactions per day</p>
-                  {isLoading ? <div className="h-48 bg-background-elevated rounded-xl animate-shimmer" /> :
-                    txs.length === 0 ? <EmptyChart /> : (
-                      <ResponsiveContainer width="100%" height={190}>
-                        <AreaChart data={timeSeries} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                          <defs>
-                            <linearGradient id="ag-vg" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="hsl(220,100%,60%)" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="hsl(220,100%,60%)" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,12%)" />
-                          <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
-                          <YAxis tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
-                          <Tooltip content={<ChartTooltip />} />
-                          <Area type="monotone" dataKey="txCount" name="Txs" stroke="hsl(220,100%,60%)" strokeWidth={2} fill="url(#ag-vg)" dot={false} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    )}
+              <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">Transaction Volume — 14 Day</h3>
+                    <p className="text-xs text-foreground-muted mt-0.5">Daily tx count</p>
+                  </div>
+                  {txs.length > 0 && (
+                    <Button variant="ghost" size="sm" onClick={() => exportToCsv(timeSeries as any, "agent_timeseries")}
+                      className="text-foreground-muted gap-1.5 h-7 text-xs">
+                      <Download size={11} /> CSV
+                    </Button>
+                  )}
                 </div>
+                {isLoadingProfile ? <div className="h-52 bg-background-elevated rounded-xl animate-shimmer" /> : (
+                  <ResponsiveContainer width="100%" height={200}>
+                    <AreaChart data={timeSeries} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                      <defs>
+                        <linearGradient id="ag-vg" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="hsl(220,100%,60%)" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="hsl(220,100%,60%)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,12%)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Area type="monotone" dataKey="txCount" name="Transactions" stroke="hsl(220,100%,60%)" strokeWidth={2} fill="url(#ag-vg)" dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
 
-                <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
-                  <h3 className="text-sm font-bold text-foreground mb-1">Gas Efficiency</h3>
-                  <p className="text-xs text-foreground-muted mb-5">Avg gas USD per success tx</p>
-                  {isLoading ? <div className="h-48 bg-background-elevated rounded-xl animate-shimmer" /> :
-                    txs.length === 0 ? <EmptyChart /> : (
-                      <ResponsiveContainer width="100%" height={190}>
-                        <AreaChart data={timeSeries} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                          <defs>
-                            <linearGradient id="ag-gg" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor="hsl(38,100%,55%)" stopOpacity={0.3} />
-                              <stop offset="95%" stopColor="hsl(38,100%,55%)" stopOpacity={0} />
-                            </linearGradient>
-                          </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,12%)" />
-                          <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
-                          <YAxis tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
-                          <Tooltip content={<ChartTooltip />} />
-                          <Area type="monotone" dataKey="gasUsd" name="Gas USD" stroke="hsl(38,100%,55%)" strokeWidth={2} fill="url(#ag-gg)" dot={false} />
-                        </AreaChart>
-                      </ResponsiveContainer>
-                    )}
-                </div>
+              {/* Gas efficiency */}
+              <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
+                <h3 className="text-sm font-bold text-foreground mb-1">Gas Efficiency</h3>
+                <p className="text-xs text-foreground-muted mb-5">Average USD per successful transaction</p>
+                {isLoadingProfile ? <div className="h-48 bg-background-elevated rounded-xl animate-shimmer" /> : (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <BarChart data={timeSeries} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,12%)" vertical={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
+                      <YAxis tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
+                      <Tooltip content={<ChartTooltip />} />
+                      <Bar dataKey="gasUsd" name="Avg Gas USD" fill="hsl(38,100%,55%)" radius={[3, 3, 0, 0]} fillOpacity={0.8} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </motion.div>
           )}
 
+          {/* Failures tab */}
           {activeTab === "Failures" && (
             <motion.div key="failures" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
               className="space-y-4">
               {failedTxs.length === 0 ? (
-                <div className="card-glass rounded-2xl border border-border p-16 text-center space-y-3">
-                  <CheckCircle2 size={40} className="text-primary mx-auto" />
-                  <p className="text-base font-bold text-foreground">No failures detected</p>
-                  <p className="text-sm text-foreground-muted">All recent transactions succeeded</p>
+                <div className="card-glass rounded-2xl border border-border p-12 text-center space-y-4">
+                  {hasUserKey ? (
+                    <>
+                      <CheckCircle2 size={32} className="text-success mx-auto" />
+                      <p className="text-base font-bold text-foreground">No failures in loaded data</p>
+                      <p className="text-sm text-foreground-muted">Load live data to analyze failures for this agent.</p>
+                    </>
+                  ) : (
+                    <>
+                      <KeyRound size={32} className="text-primary/50 mx-auto" />
+                      <p className="text-base font-bold text-foreground">Live data required</p>
+                      <p className="text-sm text-foreground-muted max-w-sm mx-auto">
+                        Add your GoldRush API key in Settings to load real failure data with revert reasons and debug tips.
+                      </p>
+                    </>
+                  )}
                 </div>
               ) : (
                 <>
-                  {/* Failure chart */}
+                  {/* Debug tips */}
                   {failureBreakdown.length > 0 && (
                     <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
-                      <h3 className="text-sm font-bold text-foreground mb-5">Failure Reasons</h3>
-                      <ResponsiveContainer width="100%" height={200}>
-                        <BarChart data={failureBreakdown} layout="vertical" margin={{ top: 4, right: 16, bottom: 0, left: 8 }}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="hsl(0,0%,12%)" horizontal={false} />
-                          <XAxis type="number" tick={{ fontSize: 9, fill: "hsl(0,0%,45%)" }} tickLine={false} axisLine={false} />
-                          <YAxis type="category" dataKey="reason" tick={{ fontSize: 8, fill: "hsl(0,0%,50%)" }} tickLine={false} axisLine={false} width={110} />
-                          <Tooltip content={<ChartTooltip />} />
-                          <Bar dataKey="count" name="Count" radius={[0, 6, 6, 0]}>
-                            {failureBreakdown.map((_, i) => (
-                              <Cell key={i} fill={FAILURE_COLORS[i % FAILURE_COLORS.length]} />
-                            ))}
-                          </Bar>
-                        </BarChart>
-                      </ResponsiveContainer>
+                      <h3 className="text-sm font-bold text-foreground mb-4">Debug Tips</h3>
+                      <div className="space-y-3">
+                        {failureBreakdown.slice(0, 4).map((f, i) => (
+                          <div key={f.reason} className="flex items-start gap-3 p-3.5 rounded-xl bg-background-elevated border border-border/50">
+                            <span className="w-2 h-2 rounded-sm mt-1 flex-shrink-0" style={{ background: FAILURE_COLORS[i % FAILURE_COLORS.length] }} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="text-xs font-semibold text-foreground">{f.reason}</p>
+                                <span className="badge-error text-[9px] px-1.5 py-0.5 rounded-md">{f.count} failures</span>
+                              </div>
+                              <p className="text-[11px] text-foreground-muted leading-relaxed">
+                                {DEBUG_TIPS[f.reason] ?? "Check contract source and transaction trace for details."}
+                              </p>
+                              <p className="text-[10px] text-warning mt-1">Gas wasted: ${f.gasWasted.toFixed(4)}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
-                  {/* Debug tips */}
+                  {/* Failed txs list */}
                   <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <Flame size={15} className="text-warning" />
-                      <h3 className="text-sm font-bold text-foreground">Debug Tips</h3>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-sm font-bold text-foreground">Failed Transactions ({failedTxs.length})</h3>
+                      <Button variant="ghost" size="sm"
+                        onClick={() => exportToCsv(failedTxs.map(t => ({
+                          hash: t.tx_hash, time: t.block_signed_at,
+                          reason: parseFailureReason(t), gas_wasted: t.gas_quote?.toFixed(6)
+                        })), "failures")}
+                        className="text-foreground-muted gap-1.5 h-7 text-xs">
+                        <Download size={11} /> CSV
+                      </Button>
                     </div>
-                    <div className="space-y-3">
-                      {failureBreakdown.map((f, i) => (
-                        <div key={f.reason} className="flex items-start gap-3 p-3.5 rounded-xl bg-background-elevated border border-border">
-                          <span className="w-2 h-2 rounded-sm flex-shrink-0 mt-1.5" style={{ background: FAILURE_COLORS[i % FAILURE_COLORS.length] }} />
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <p className="text-xs font-bold text-foreground">{f.reason}</p>
-                              <span className="badge-error text-[9px] px-1.5 py-0.5 rounded-md">{f.count}×</span>
-                            </div>
-                            <p className="text-xs text-foreground-muted">{DEBUG_TIPS[f.reason] ?? "Investigate transaction trace for details."}</p>
-                          </div>
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs min-w-[480px]">
+                        <thead>
+                          <tr className="border-b border-border text-foreground-subtle text-[10px] uppercase tracking-wider">
+                            <th className="text-left pb-2 font-semibold">Time</th>
+                            <th className="text-left pb-2 font-semibold hidden sm:table-cell">Tx Hash</th>
+                            <th className="text-left pb-2 font-semibold">Reason</th>
+                            <th className="text-right pb-2 font-semibold">Gas Wasted</th>
+                            <th className="text-right pb-2 font-semibold">Link</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {failedTxs.slice(0, 25).map(tx => (
+                            <tr key={tx.tx_hash} className="border-b border-border/40 table-row-hover">
+                              <td className="py-2.5 pr-3 text-foreground-muted whitespace-nowrap">
+                                {new Date(tx.block_signed_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                              </td>
+                              <td className="py-2.5 pr-3 hidden sm:table-cell font-mono text-foreground-subtle">
+                                {shortAddress(tx.tx_hash)}
+                              </td>
+                              <td className="py-2.5 pr-3">
+                                <span className="badge-error text-[9px] px-1.5 py-0.5 rounded-md font-medium">
+                                  {parseFailureReason(tx)}
+                                </span>
+                              </td>
+                              <td className="py-2.5 pr-3 text-right text-warning">
+                                {tx.gas_quote > 0 ? `$${tx.gas_quote.toFixed(6)}` : `${tx.gas_spent.toLocaleString()} gas`}
+                              </td>
+                              <td className="py-2.5 text-right">
+                                {TX_EXPLORER[profileChain] && (
+                                  <a href={`${TX_EXPLORER[profileChain]}${tx.tx_hash}`} target="_blank" rel="noopener noreferrer"
+                                    className="text-foreground-subtle hover:text-primary transition-colors">
+                                    <ExternalLink size={11} />
+                                  </a>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 </>
@@ -462,74 +564,88 @@ export default function AgentProfile() {
             </motion.div>
           )}
 
+          {/* Transactions tab */}
           {activeTab === "Transactions" && (
-            <motion.div key="txs" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <motion.div key="transactions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
               <div className="card-glass rounded-2xl border border-border p-5 sm:p-6">
                 <div className="flex items-center justify-between mb-5">
                   <div>
-                    <h3 className="text-sm font-bold text-foreground">Transaction History</h3>
-                    <p className="text-xs text-foreground-muted mt-0.5">Last {Math.min(txs.length, 50)} transactions</p>
+                    <h3 className="text-sm font-bold text-foreground">Recent Transactions</h3>
+                    <p className="text-xs text-foreground-muted mt-0.5">
+                      {txs.length > 0 ? `${txs.length} transactions loaded` : "Load live data to see transactions"}
+                    </p>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => exportToCsv(
-                    txs.map(t => ({ tx_hash: t.tx_hash, time: t.block_signed_at, success: t.successful, gas_usd: t.gas_quote, failure_reason: t.successful ? "" : parseFailureReason(t) })),
-                    `agent_${address?.slice(0,8)}`
-                  )} className="text-foreground-muted gap-1.5 h-8 text-xs hover:bg-accent/50 rounded-lg">
-                    <Download size={11} /> Export CSV
-                  </Button>
+                  {txs.length > 0 && (
+                    <Button variant="ghost" size="sm"
+                      onClick={() => exportToCsv(txs.map(t => ({
+                        hash: t.tx_hash, time: t.block_signed_at, success: t.successful,
+                        gas_usd: t.gas_quote?.toFixed(6), gas_spent: t.gas_spent
+                      })), "transactions")}
+                      className="text-foreground-muted gap-1.5 h-7 text-xs">
+                      <Download size={11} /> CSV
+                    </Button>
+                  )}
                 </div>
 
-                {isLoading ? (
-                  <div className="space-y-2.5">
-                    {[...Array(6)].map((_, i) => (
-                      <div key={i} className="h-12 bg-background-elevated rounded-xl animate-shimmer" />
-                    ))}
+                {txs.length === 0 ? (
+                  <div className="text-center py-12 space-y-3">
+                    {hasUserKey ? (
+                      <>
+                        <RefreshCw size={24} className="text-foreground-subtle mx-auto" />
+                        <p className="text-sm text-foreground-muted">Click "Load Live" in the header to fetch transactions</p>
+                        <Button size="sm" onClick={loadLiveData} disabled={isLoadingProfile}
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 gap-2 rounded-xl shadow-neon-sm">
+                          <RefreshCw size={12} className={isLoadingProfile ? "animate-spin" : ""} />
+                          Load Transactions
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <KeyRound size={24} className="text-primary/50 mx-auto" />
+                        <p className="text-sm text-foreground-muted">Add your GoldRush API key to load live transactions</p>
+                      </>
+                    )}
                   </div>
-                ) : txs.length === 0 ? (
-                  <p className="text-sm text-foreground-muted text-center py-10">No transactions found</p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-xs min-w-[500px]">
                       <thead>
-                        <tr className="text-[10px] uppercase tracking-wider text-foreground-subtle border-b border-border pb-2">
-                          <th className="text-left pb-3 font-semibold">Time</th>
-                          <th className="text-left pb-3 font-semibold hidden sm:table-cell">Tx Hash</th>
-                          <th className="text-center pb-3 font-semibold">Status</th>
-                          <th className="text-right pb-3 font-semibold">Gas USD</th>
-                          <th className="text-left pb-3 font-semibold">Reason</th>
-                          <th className="text-right pb-3 font-semibold">View</th>
+                        <tr className="border-b border-border text-foreground-subtle text-[10px] uppercase tracking-wider">
+                          <th className="text-left pb-2 font-semibold">Time</th>
+                          <th className="text-left pb-2 font-semibold hidden sm:table-cell">Tx Hash</th>
+                          <th className="text-center pb-2 font-semibold">Status</th>
+                          <th className="text-right pb-2 font-semibold">Gas USD</th>
+                          <th className="text-right pb-2 font-semibold">Gas Spent</th>
+                          <th className="text-right pb-2 font-semibold">Link</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {txs.slice(0, 50).map(tx => (
-                          <tr key={tx.tx_hash} className="border-t border-border/40 table-row-hover">
-                            <td className="py-3 pr-4 text-foreground-muted whitespace-nowrap">
-                              {new Date(tx.block_signed_at).toLocaleString(undefined, {
-                                month: "short", day: "numeric", hour: "2-digit", minute: "2-digit"
-                              })}
+                        {txs.slice(0, 30).map(tx => (
+                          <tr key={tx.tx_hash} className="border-b border-border/40 table-row-hover">
+                            <td className="py-2.5 pr-3 text-foreground-muted whitespace-nowrap">
+                              {new Date(tx.block_signed_at).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </td>
-                            <td className="py-3 pr-4 hidden sm:table-cell">
-                              <span className="font-mono text-foreground-subtle text-[10px]">{shortAddress(tx.tx_hash)}</span>
+                            <td className="py-2.5 pr-3 font-mono text-foreground-subtle hidden sm:table-cell">
+                              {shortAddress(tx.tx_hash)}
                             </td>
-                            <td className="py-3 pr-4 text-center">
-                              <span className={`inline-flex items-center justify-center w-5 h-5 rounded-md text-[10px] font-bold ${tx.successful ? "badge-success" : "badge-error"}`}>
-                                {tx.successful ? "✓" : "✗"}
+                            <td className="py-2.5 pr-3 text-center">
+                              <span className={`text-[9px] font-bold px-2 py-0.5 rounded-md ${tx.successful ? "badge-success" : "badge-error"}`}>
+                                {tx.successful ? "✓ OK" : "✗ Fail"}
                               </span>
                             </td>
-                            <td className="py-3 pr-4 text-right text-foreground-muted font-mono">
+                            <td className="py-2.5 pr-3 text-right text-foreground-muted">
                               {tx.gas_quote > 0 ? `$${tx.gas_quote.toFixed(4)}` : "—"}
                             </td>
-                            <td className="py-3 pr-4">
-                              {!tx.successful && (
-                                <span className="badge-error px-1.5 py-0.5 rounded-md text-[9px] font-medium">
-                                  {parseFailureReason(tx)}
-                                </span>
-                              )}
+                            <td className="py-2.5 pr-3 text-right text-foreground-muted">
+                              {tx.gas_spent.toLocaleString()}
                             </td>
-                            <td className="py-3 text-right">
-                              <a href={`${TX_EXPLORER[profileChain] ?? ""}${tx.tx_hash}`} target="_blank" rel="noopener noreferrer"
-                                className="text-foreground-subtle hover:text-primary transition-colors p-1 rounded-md hover:bg-primary/10 inline-flex">
-                                <ExternalLink size={11} />
-                              </a>
+                            <td className="py-2.5 text-right">
+                              {TX_EXPLORER[profileChain] && (
+                                <a href={`${TX_EXPLORER[profileChain]}${tx.tx_hash}`} target="_blank" rel="noopener noreferrer"
+                                  className="text-foreground-subtle hover:text-primary transition-colors">
+                                  <ExternalLink size={11} />
+                                </a>
+                              )}
                             </td>
                           </tr>
                         ))}
