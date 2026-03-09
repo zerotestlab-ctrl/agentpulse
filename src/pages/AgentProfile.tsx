@@ -73,10 +73,24 @@ const DEBUG_TIPS: Record<string, string> = {
   "Unknown Revert": "Check contract source code. Use Tenderly to trace the exact revert reason on-chain.",
 };
 
+const ETH_ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
+
 export default function AgentProfile() {
   const { address } = useParams<{ address: string }>();
   const navigate = useNavigate();
   const { apiKey, hasUserKey, chain, metricsMap, trackAgent, untrackAgent, isTracked } = useApp();
+
+  // Validate address format immediately — prevents injection into API URL path
+  if (!address || !ETH_ADDR_RE.test(address)) {
+    return (
+      <div className="p-8 flex flex-col items-center justify-center gap-4 text-center">
+        <p className="text-destructive font-semibold text-sm">Invalid agent address format.</p>
+        <button onClick={() => navigate("/")} className="text-primary text-xs underline">
+          ← Back to Bubble Map
+        </button>
+      </div>
+    );
+  }
 
   const [txs, setTxs] = useState<CovalentTx[]>([]);
   const [liveMetrics, setLiveMetrics] = useState<AgentMetrics | null>(null);
