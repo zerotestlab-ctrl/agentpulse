@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Settings Modal
+ * Agentpuls — Settings Modal
  * Clean API key input + chain selection with localStorage persistence.
  * Key is mandatory for live data — demo data works without it.
  */
@@ -157,7 +157,7 @@ export function SettingsModal({ open, onClose }: SettingsModalProps) {
               <Shield size={12} className="text-primary" /> 100% Client-Side Privacy
             </div>
             <p className="text-foreground-muted leading-relaxed">
-              Your API key is stored only in your browser's localStorage. No data is sent to any AgentPulse server — all requests go directly to Covalent.
+              Your API key is stored only in your browser's localStorage. No data is sent to any Agentpuls server — all requests go directly to Covalent.
             </p>
           </div>
         </div>

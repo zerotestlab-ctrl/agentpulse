@@ -1,5 +1,5 @@
 /**
- * AgentLens — Embed Code Snippet Generator Modal
+ * Agentpuls — Embed Code Snippet Generator Modal
  */
 import { useState } from "react";
 import {
@@ -23,14 +23,14 @@ export function EmbedModal({ open, onClose }: EmbedModalProps) {
   const { chain } = useApp();
   const [copied, setCopied] = useState(false);
 
-  const widgetUrl = `https://agentpulse.app/widget?chain=${chain}`;
-  const snippet = `<!-- AgentPulse Widget — ${CHAIN_LABELS[chain]} AI Agent Analytics -->
+  const widgetUrl = `https://agentpuls.app/widget?chain=${chain}`;
+  const snippet = `<!-- Agentpuls Widget — ${CHAIN_LABELS[chain]} AI Agent Analytics -->
 <iframe
   src="${widgetUrl}"
   width="100%"
   height="420"
   style="border:none;border-radius:12px;overflow:hidden;"
-  title="AgentPulse — On-Chain AI Agent Performance"
+  title="Agentpuls — On-Chain AI Agent Performance"
   loading="lazy"
 ></iframe>`;
 
@@ -49,7 +49,7 @@ export function EmbedModal({ open, onClose }: EmbedModalProps) {
             <span className="text-neon">{"</>"}</span> Embed Widget
           </DialogTitle>
           <DialogDescription className="text-foreground-muted">
-            Paste this snippet into any website to embed the AgentPulse mini widget
+            Paste this snippet into any website to embed the Agentpuls mini widget
             showing live {CHAIN_LABELS[chain]} agent analytics.
           </DialogDescription>
         </DialogHeader>

@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Performance Analytics Page
+ * Agentpuls — Performance Analytics Page
  * Multi-chart analytics. Works with demo data; live data after refresh.
  */
 import { useMemo } from "react";

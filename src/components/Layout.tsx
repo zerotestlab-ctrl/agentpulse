@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Premium Layout (Birdeye-quality)
+ * Agentpuls — Premium Layout (Birdeye-quality)
  * - Non-dismissible API key banner until key is added
  * - Refresh button disabled + tooltip when no key
  * - Sticky header: logo + search + settings + refresh
@@ -111,7 +111,7 @@ export function Layout({ children }: LayoutProps) {
                 <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shadow-neon-sm flex-shrink-0">
                   <Zap size={13} className="text-primary-foreground" />
                 </div>
-                <span className="font-bold text-sm text-foreground hidden sm:block tracking-tight">AgentPulse</span>
+                <span className="font-bold text-sm text-foreground hidden sm:block tracking-tight">Agentpuls</span>
               </div>
             </div>
 
@@ -260,12 +260,12 @@ export function Layout({ children }: LayoutProps) {
                 <span>Powered by GoldRush + The Graph · 100% on-chain public data · No login · No custody</span>
               </div>
               <div className="flex items-center gap-3">
-                <a href="https://github.com/agentpulse" target="_blank" rel="noopener noreferrer"
+                <a href="https://github.com/agentpuls" target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 hover:text-foreground-muted transition-colors">
                   <Github size={12} /> GitHub
                 </a>
                 <span>·</span>
-                <a href="https://twitter.com/intent/tweet?text=Check+out+AgentPulse+—+on-chain+AI+agent+analytics!&url=https://agentpulse.app"
+                <a href="https://twitter.com/intent/tweet?text=Check+out+Agentpuls+—+on-chain+AI+agent+analytics!&url=https://agentpuls.app"
                   target="_blank" rel="noopener noreferrer"
                   className="flex items-center gap-1 hover:text-foreground-muted transition-colors">
                   <Twitter size={12} /> Share

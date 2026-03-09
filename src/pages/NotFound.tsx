@@ -1,5 +1,5 @@
 /**
- * AgentPulse — 404 Not Found
+ * Agentpuls — 404 Not Found
  * Premium dark styling matching the rest of the app.
  */
 import { useNavigate, useLocation } from "react-router-dom";

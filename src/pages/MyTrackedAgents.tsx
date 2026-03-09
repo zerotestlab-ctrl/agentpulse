@@ -1,5 +1,5 @@
 /**
- * AgentPulse — My Tracked Agents (Birdeye portfolio watchlist)
+ * Agentpuls — My Tracked Agents (Birdeye portfolio watchlist)
  * Shows saved agents as performance tiles. Load Metrics requires user API key.
  */
 import { useMemo, useState, useCallback } from "react";

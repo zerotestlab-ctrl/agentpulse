@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Premium Sidebar (Birdeye-style)
+ * Agentpuls — Premium Sidebar (Birdeye-style)
  * Collapsible desktop (icon mode), drawer mobile auto-closes on selection.
  *
  * Route map matches App.tsx exactly:
@@ -64,7 +64,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-foreground leading-none tracking-tight">AgentPulse</p>
+              <p className="text-sm font-bold text-foreground leading-none tracking-tight">Agentpuls</p>
               <p className="text-[9px] text-foreground-subtle mt-0.5 uppercase tracking-widest font-medium">
                 Agent Analytics
               </p>

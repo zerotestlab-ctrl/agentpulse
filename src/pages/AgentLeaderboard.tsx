@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Agent Leaderboard Page
+ * Agentpuls — Agent Leaderboard Page
  * Sortable, filterable table. Click any row → Agent Profile.
  */
 import { useMemo, useState } from "react";
