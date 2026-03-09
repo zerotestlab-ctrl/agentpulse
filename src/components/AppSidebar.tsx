@@ -31,7 +31,7 @@ const NAV_ITEMS = [
   { title: "Performance",  url: "/performance", icon: TrendingUp,       group: "analytics" },
   { title: "Leaderboard",  url: "/leaderboard", icon: Trophy,           group: "analytics" },
   { title: "Cross-Chain",  url: "/benchmarks",  icon: GitCompareArrows, group: "analytics" },
-  { title: "My Agents",    url: "/watchlist",   icon: Star,             group: "analytics" },
+  { title: "My Agents",    url: "/tracked",     icon: Star,             group: "analytics" },
   { title: "Failures",     url: "/failures",    icon: Bug,              group: "tools" },
   { title: "How It Works", url: "/how-it-works",icon: BookOpen,         group: "tools" },
 ] as const;
@@ -94,7 +94,7 @@ export function AppSidebar() {
             <SidebarMenu className="space-y-0.5">
               {mainItems.map(item => {
                 const active = isActive(item.url);
-                const badge = item.url === "/watchlist" ? trackedAgents.length : 0;
+                const badge = item.url === "/tracked" ? trackedAgents.length : 0;
                 return (
                   <SidebarMenuItem key={item.url}>
                     <SidebarMenuButton asChild tooltip={collapsed ? item.title : undefined}>
