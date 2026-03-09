@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Agent Profile Page (Birdeye token page style)
+ * Agentpuls — Agent Profile Page (Birdeye token page style)
  * Hero header, stat grid, main chart, tabs (Overview/Performance/Failures/History)
  * AgentProfile fetches its own data on-demand using the user's API key.
  * If no user key, shows demo data from metricsMap.

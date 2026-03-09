@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Root App
+ * Agentpuls — Root App
  *
  * Routing:
  *   /              → BubbleMap (main discovery page)

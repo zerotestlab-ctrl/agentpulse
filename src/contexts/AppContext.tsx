@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Global App Context
+ * Agentpuls — Global App Context
  *
  * Two-mode system:
  *  - Demo mode (no user key): static demo data, instant render

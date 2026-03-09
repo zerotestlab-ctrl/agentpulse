@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Static Demo Data
+ * Agentpuls — Static Demo Data
  * Pre-computed realistic on-chain agent metrics for instant <300ms first load.
  * Generated from real patterns seen on Base, Ethereum, and Avalanche.
  */

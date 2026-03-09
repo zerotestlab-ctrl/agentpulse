@@ -1,5 +1,5 @@
 /**
- * AgentLens — How It Works Page
+ * Agentpuls — How It Works Page
  * Explains ERC-8004, Covalent, and the data pipeline
  */
 import { BookOpen, Layers, Database, Activity, ArrowRight, ExternalLink } from "lucide-react";
@@ -75,9 +75,9 @@ export default function HowItWorks() {
           <BookOpen size={11} />
           Documentation
         </div>
-        <h1 className="text-2xl font-bold text-foreground">How AgentPulse Works</h1>
+        <h1 className="text-2xl font-bold text-foreground">How Agentpuls Works</h1>
         <p className="text-sm text-foreground-muted mt-2 max-w-2xl">
-          AgentPulse aggregates 100% public on-chain data using the ERC-8004 AI agent
+          Agentpuls aggregates 100% public on-chain data using the ERC-8004 AI agent
           identity standard and the Covalent GoldRush API. No custody, no login,
           no centralized database.
         </p>
@@ -90,7 +90,7 @@ export default function HowItWorks() {
           {[
             { label: "ERC-8004 Registry", sublabel: "Agent discovery", color: "text-primary" },
             { label: "Covalent API", sublabel: "Transaction data", color: "text-secondary" },
-            { label: "AgentLens", sublabel: "Your browser", color: "text-success" },
+            { label: "Agentpuls", sublabel: "Your browser", color: "text-success" },
             { label: "Dashboard", sublabel: "Charts + tables", color: "text-warning" },
           ].map((node, i) => (
             <div key={node.label} className="flex items-center gap-2 sm:gap-4">
@@ -188,10 +188,9 @@ export default function HowItWorks() {
           <div>
             <h3 className="text-sm font-semibold text-success mb-1">Live Data</h3>
             <p className="text-xs text-foreground-muted">
-              AgentLens refreshes data every 60 seconds automatically, or on demand
-              via the refresh button in the header. Transaction data typically has
-              1–5 block lag depending on Covalent's indexing speed. Gas USD values
-              use the spot price at transaction time as reported by Covalent.
+              Agentpuls refreshes data on demand via the Refresh Data button in the header.
+              Transaction data typically has 1–5 block lag depending on Covalent's indexing speed.
+              Gas USD values use the spot price at transaction time as reported by Covalent.
             </p>
           </div>
         </div>

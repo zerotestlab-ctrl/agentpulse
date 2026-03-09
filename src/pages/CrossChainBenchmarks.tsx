@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Cross-Chain Benchmarks
+ * Agentpuls — Cross-Chain Benchmarks
  * Bar charts comparing metrics. Works with demo data instantly.
  */
 import { useMemo } from "react";

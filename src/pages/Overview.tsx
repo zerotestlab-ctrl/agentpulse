@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Premium Overview Page (Birdeye-style)
+ * Agentpuls — Premium Overview Page (Birdeye-style)
  * Hero + KPI cards + charts + top agents table.
  * Demo data always visible; "Refresh Data" requires user API key.
  */
@@ -108,7 +108,7 @@ export default function Overview() {
             </div>
             <div>
               <h1 className="text-3xl sm:text-4xl font-black text-foreground tracking-tight leading-none">
-                Agent<span className="text-neon">Pulse</span>
+                Agent<span className="text-neon">puls</span>
               </h1>
               <p className="text-sm text-foreground-muted mt-2 max-w-md leading-relaxed">
                 On-Chain AI Agent Performance Analytics — ERC-8004 & Covalent GoldRush.

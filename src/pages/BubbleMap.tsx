@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Interactive Bubble Map (Birdeye-style discovery page)
+ * Agentpuls — Interactive Bubble Map (Birdeye-style discovery page)
  * Agents shown as colored bubbles (size = tx volume, color = success rate).
  * Works with demo data instantly, live data after refresh.
  */

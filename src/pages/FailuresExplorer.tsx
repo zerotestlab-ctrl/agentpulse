@@ -1,5 +1,5 @@
 /**
- * AgentPulse — Failures Explorer
+ * Agentpuls — Failures Explorer
  * Detailed failed transactions. Works with demo data; live data after refresh.
  */
 import { useMemo, useState } from "react";
