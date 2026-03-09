@@ -2,10 +2,11 @@
  * AgentPulse — Global App Context
  *
  * Two-mode system:
- *  - Demo mode: instant static data from demoData.ts (<300ms load)
- *  - Live mode: real GoldRush/Covalent fetches, React Query cached
+ *  - Demo mode (no user key): static demo data, instant render
+ *  - Live mode (user key saved): manual refresh with GoldRush/Covalent
  *
- * NO auto-refresh. User manually triggers "Load Live Data" or "Refresh".
+ * NO auto-refresh. User manually clicks "Refresh Data".
+ * Refresh is DISABLED unless a user API key is saved.
  */
 import React, {
   createContext,
@@ -24,9 +25,6 @@ import {
 import { getApiKey, getSelectedChain, setApiKey, setSelectedChain } from "@/lib/storage";
 import { buildDemoMetricsMap, DEMO_KPIS, type DemoAgent, DEMO_AGENTS } from "@/lib/demoData";
 import { toast } from "@/hooks/use-toast";
-
-/** Official GoldRush demo key */
-export const DEMO_API_KEY = "cqt_rQpPMkbHM8WDgR6BqGkyc3jfkqFF";
 
 export interface TrackedAgent {
   address: string;
@@ -47,9 +45,9 @@ function saveTrackedAgents(a: TrackedAgent[]) {
 
 interface AppContextValue {
   // Settings
-  apiKey: string;
-  isDemo: boolean;
-  isLiveMode: boolean;
+  apiKey: string;           // user's personal key (empty = no key set)
+  hasUserKey: boolean;      // true only when user has saved their own key
+  isLiveMode: boolean;      // true after first successful live fetch
   setAndSaveApiKey: (k: string) => void;
   chain: SupportedChain;
   setAndSaveChain: (c: SupportedChain) => void;
@@ -63,7 +61,6 @@ interface AppContextValue {
   loadProgress: number;
   error: string | null;
   lastRefreshed: Date | null;
-  hasLoaded: boolean;
 
   // Demo KPIs (always available)
   demoKpis: typeof DEMO_KPIS;
@@ -76,19 +73,18 @@ interface AppContextValue {
 
   // Actions
   refresh: () => void;
-  switchToLiveMode: () => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const storedKey = getApiKey();
-  const [apiKey, setApiKeyState] = useState(storedKey || DEMO_API_KEY);
-  const [isDemo, setIsDemo] = useState(!storedKey);
+  const [apiKey, setApiKeyState] = useState(storedKey);
+  const hasUserKey = !!apiKey;
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [chain, setChainState] = useState<SupportedChain>(getSelectedChain);
 
-  // Start with demo data pre-loaded for instant render
+  // Always start with demo data for instant render
   const [metricsMap, setMetricsMap] = useState<Record<string, AgentMetrics>>(
     () => buildDemoMetricsMap()
   );
@@ -96,7 +92,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [loadProgress, setLoadProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-  const [hasLoaded, setHasLoaded] = useState(true); // demo data counts as loaded
   const [trackedAgents, setTrackedAgents] = useState<TrackedAgent[]>(getTrackedAgents);
 
   const abortRef = useRef(false);
@@ -106,8 +101,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const demoAgents = DEMO_AGENTS.filter((a) => a.chain === chain);
   const allTxs = Object.values(metricsMap).flatMap((m) => m.recentTxs);
 
-  /** Live data fetch — manual only */
+  /** Live data fetch — manual only, requires user key */
   const refresh = useCallback(async () => {
+    if (!apiKey) {
+      toast({
+        title: "API Key Required",
+        description: "Add your free GoldRush key in Settings to load live data.",
+        variant: "destructive",
+        duration: 3500,
+      });
+      return;
+    }
+
     const now = Date.now();
     if (now - lastRefreshRef.current < 3_000) return;
     lastRefreshRef.current = now;
@@ -138,12 +143,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       setMetricsMap(newMetrics);
       setLastRefreshed(new Date());
-      setHasLoaded(true);
       setIsLiveMode(true);
 
       toast({
-        title: "Live data loaded",
-        description: `Updated ${agents.length} agents on ${chain}`,
+        title: "✓ Data refreshed",
+        description: `Live data loaded for ${agents.length} agents on ${chain}`,
         duration: 2500,
       });
     } catch (err) {
@@ -160,29 +164,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [apiKey, agents, chain]);
 
-  /** Switch to live mode and trigger first fetch */
-  const switchToLiveMode = useCallback(() => {
-    lastRefreshRef.current = 0; // bypass debounce
-    refresh();
-  }, [refresh]);
-
   const setAndSaveApiKey = (key: string) => {
     const trimmed = key.trim();
     setApiKey(trimmed);
-    setApiKeyState(trimmed || DEMO_API_KEY);
-    setIsDemo(!trimmed);
+    setApiKeyState(trimmed);
+    // Reset to demo data on key change
     setMetricsMap(buildDemoMetricsMap());
-    setHasLoaded(true);
     setIsLiveMode(false);
     lastRefreshRef.current = 0;
     abortRef.current = true;
+
+    if (trimmed) {
+      toast({
+        title: "Live data unlocked!",
+        description: "API key saved — click Refresh Data to load live transactions.",
+        duration: 3500,
+      });
+    }
   };
 
   const setAndSaveChain = (c: SupportedChain) => {
     setSelectedChain(c);
     setChainState(c);
     setMetricsMap(buildDemoMetricsMap());
-    setHasLoaded(true);
     setIsLiveMode(false);
     lastRefreshRef.current = 0;
     abortRef.current = true;
@@ -211,15 +215,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   return (
     <AppContext.Provider
       value={{
-        apiKey, isDemo, isLiveMode,
+        apiKey, hasUserKey, isLiveMode,
         setAndSaveApiKey,
         chain, setAndSaveChain,
         agents, demoAgents, metricsMap, allTxs,
         isLoading, loadProgress, error,
-        lastRefreshed, hasLoaded,
+        lastRefreshed,
         demoKpis: DEMO_KPIS,
         trackedAgents, trackAgent, untrackAgent, isTracked,
-        refresh, switchToLiveMode,
+        refresh,
       }}
     >
       {children}
