@@ -1,11 +1,11 @@
-# AgentPulse
+# AgentPuls
 
 **The analytics platform for on-chain AI agents** — Real-time performance analytics, success rates, failure forensics, and gas efficiency benchmarks for autonomous agents across Base, Ethereum, Avalanche and beyond.
 
 Live demo: https://agentpuls.lovable.app/  
-GitHub: https://github.com/zerotestlab-ctrl/agentpulse
+GitHub: https://github.com/zerotestlab-ctrl/agentpuls
 
-## Why AgentPulse Matters
+## Why AgentPuls Matters
 
 2026 is the year of on-chain AI agents (trading swarms, autonomous governance, cross-chain executors).  
 Dune shows volume. Virtuals shows its own revenue.  
@@ -66,7 +66,7 @@ No login. No custody. No data collection. Pure public good.
 ## Quick Start (Local)
 
 ```bash
-git clone https://github.com/zerotestlab-ctrl/agentpulse.git
-cd agentpulse
+git clone https://github.com/zerotestlab-ctrl/agentpuls.git
+cd agentpuls
 npm install
 npm run dev
