@@ -171,7 +171,7 @@ export function Layout({ children }: LayoutProps) {
                       <button key={agent.address} onMouseDown={() => handleSearchSubmit(agent.address)}
                         className="w-full px-3.5 py-3 flex items-center gap-3 hover:bg-accent/50 text-left transition-colors last:rounded-b-xl">
                         <div className="w-7 h-7 rounded-lg bg-primary/8 border border-primary/15 flex items-center justify-center flex-shrink-0">
-            <Zap size={11} className="text-primary" />
+            <Activity size={11} className="text-primary" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className="text-xs font-medium text-foreground truncate">{agent.name}</p>
