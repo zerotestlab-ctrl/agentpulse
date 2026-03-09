@@ -33,7 +33,7 @@ export interface TrackedAgent {
   addedAt: number;
 }
 
-const TRACKED_KEY = "agentpulse_tracked_v2";
+const TRACKED_KEY = "agentpuls_tracked_v2";
 
 function getTrackedAgents(): TrackedAgent[] {
   try { return JSON.parse(localStorage.getItem(TRACKED_KEY) ?? "[]"); }
