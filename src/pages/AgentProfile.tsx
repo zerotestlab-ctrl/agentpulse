@@ -80,17 +80,7 @@ export default function AgentProfile() {
   const navigate = useNavigate();
   const { apiKey, hasUserKey, chain, metricsMap, trackAgent, untrackAgent, isTracked } = useApp();
 
-  // Validate address format immediately — prevents injection into API URL path
-  if (!address || !ETH_ADDR_RE.test(address)) {
-    return (
-      <div className="p-8 flex flex-col items-center justify-center gap-4 text-center">
-        <p className="text-destructive font-semibold text-sm">Invalid agent address format.</p>
-        <button onClick={() => navigate("/")} className="text-primary text-xs underline">
-          ← Back to Bubble Map
-        </button>
-      </div>
-    );
-  }
+  const isValidAddress = !!address && ETH_ADDR_RE.test(address);
 
   const [txs, setTxs] = useState<CovalentTx[]>([]);
   const [liveMetrics, setLiveMetrics] = useState<AgentMetrics | null>(null);
@@ -110,7 +100,7 @@ export default function AgentProfile() {
   const isShowingDemo = !liveMetrics && !!demoMetrics;
 
   const loadLiveData = useCallback(async () => {
-    if (!address || !hasUserKey) return;
+    if (!address || !isValidAddress || !hasUserKey) return;
     setIsLoadingProfile(true);
     setError(null);
     try {
